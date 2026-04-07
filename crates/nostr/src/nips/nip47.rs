@@ -169,6 +169,18 @@ pub enum Method {
     CancelHoldInvoice,
     /// Settle Hold Invoice
     SettleHoldInvoice,
+    /// Pay Onchain
+    PayOnchain,
+    /// Make New Address
+    MakeNewAddress,
+    /// Pay Offer (BOLT-12)
+    PayOffer,
+    /// Make Offer (BOLT-12)
+    MakeOffer,
+    /// Lookup Offer
+    LookupOffer,
+    /// Lookup Address
+    LookupAddress,
     /// Unknown method
     Unknown(String),
 }
@@ -219,6 +231,12 @@ impl Method {
             Self::MakeHoldInvoice => "make_hold_invoice",
             Self::CancelHoldInvoice => "cancel_hold_invoice",
             Self::SettleHoldInvoice => "settle_hold_invoice",
+            Self::PayOnchain => "pay_onchain",
+            Self::MakeNewAddress => "make_new_address",
+            Self::PayOffer => "pay_offer",
+            Self::MakeOffer => "make_offer",
+            Self::LookupOffer => "lookup_offer",
+            Self::LookupAddress => "lookup_address",
             Self::Unknown(method) => method.as_str(),
         }
     }
@@ -239,6 +257,12 @@ impl FromStr for Method {
             "make_hold_invoice" => Ok(Self::MakeHoldInvoice),
             "cancel_hold_invoice" => Ok(Self::CancelHoldInvoice),
             "settle_hold_invoice" => Ok(Self::SettleHoldInvoice),
+            "pay_onchain" => Ok(Self::PayOnchain),
+            "make_new_address" => Ok(Self::MakeNewAddress),
+            "pay_offer" => Ok(Self::PayOffer),
+            "make_offer" => Ok(Self::MakeOffer),
+            "lookup_offer" => Ok(Self::LookupOffer),
+            "lookup_address" => Ok(Self::LookupAddress),
             m => Ok(Self::Unknown(m.to_string())),
         }
     }
@@ -286,6 +310,18 @@ pub enum RequestParams {
     CancelHoldInvoice(CancelHoldInvoiceRequest),
     /// Settle Hold Invoice
     SettleHoldInvoice(SettleHoldInvoiceRequest),
+    /// Pay Onchain
+    PayOnchain(PayOnchainRequest),
+    /// Make New Address
+    MakeNewAddress,
+    /// Pay Offer (BOLT-12)
+    PayOffer(PayOfferRequest),
+    /// Make Offer (BOLT-12)
+    MakeOffer(MakeOfferRequest),
+    /// Lookup Offer
+    LookupOffer(LookupOfferRequest),
+    /// Lookup Address
+    LookupAddress(LookupAddressRequest),
 }
 
 impl Serialize for RequestParams {
@@ -310,6 +346,15 @@ impl Serialize for RequestParams {
             RequestParams::MakeHoldInvoice(p) => p.serialize(serializer),
             RequestParams::CancelHoldInvoice(p) => p.serialize(serializer),
             RequestParams::SettleHoldInvoice(p) => p.serialize(serializer),
+            RequestParams::PayOnchain(p) => p.serialize(serializer),
+            RequestParams::MakeNewAddress => {
+                let map = serializer.serialize_map(None)?;
+                map.end()
+            }
+            RequestParams::PayOffer(p) => p.serialize(serializer),
+            RequestParams::MakeOffer(p) => p.serialize(serializer),
+            RequestParams::LookupOffer(p) => p.serialize(serializer),
+            RequestParams::LookupAddress(p) => p.serialize(serializer),
         }
     }
 }
@@ -488,6 +533,61 @@ pub struct SettleHoldInvoiceRequest {
     pub preimage: String,
 }
 
+/// Pay Onchain Request
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct PayOnchainRequest {
+    /// Bitcoin address to send to
+    pub address: String,
+    /// Amount in satoshis
+    pub amount: u64,
+    /// Optional fee rate in sat/vB
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub feerate: Option<u64>,
+}
+
+/// Make New Address Request (empty — no params needed)
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct MakeNewAddressRequest {}
+
+/// Pay Offer Request (BOLT-12)
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct PayOfferRequest {
+    /// BOLT-12 offer string
+    pub offer: String,
+    /// Optional amount in millisatoshis (for zero-amount offers)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub amount: Option<u64>,
+    /// Optional payer note
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub payer_note: Option<String>,
+}
+
+/// Make Offer Request (BOLT-12)
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct MakeOfferRequest {
+    /// Amount in millisatoshis
+    pub amount: u64,
+    /// Offer description
+    pub description: String,
+    /// Optional expiry in seconds
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub expiry: Option<u32>,
+}
+
+/// Lookup Offer Request
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct LookupOfferRequest {
+    /// BOLT-12 offer string
+    pub offer: String,
+}
+
+/// Lookup Address Request
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct LookupAddressRequest {
+    /// Bitcoin address
+    pub address: String,
+}
+
 /// NIP47 Request
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize)]
 pub struct Request {
@@ -570,6 +670,60 @@ impl Request {
         }
     }
 
+    /// Compose `pay_onchain` request
+    #[inline]
+    pub fn pay_onchain(params: PayOnchainRequest) -> Self {
+        Self {
+            method: Method::PayOnchain,
+            params: RequestParams::PayOnchain(params),
+        }
+    }
+
+    /// Compose `make_new_address` request
+    #[inline]
+    pub fn make_new_address() -> Self {
+        Self {
+            method: Method::MakeNewAddress,
+            params: RequestParams::MakeNewAddress,
+        }
+    }
+
+    /// Compose `pay_offer` request
+    #[inline]
+    pub fn pay_offer(params: PayOfferRequest) -> Self {
+        Self {
+            method: Method::PayOffer,
+            params: RequestParams::PayOffer(params),
+        }
+    }
+
+    /// Compose `make_offer` request
+    #[inline]
+    pub fn make_offer(params: MakeOfferRequest) -> Self {
+        Self {
+            method: Method::MakeOffer,
+            params: RequestParams::MakeOffer(params),
+        }
+    }
+
+    /// Compose `lookup_offer` request
+    #[inline]
+    pub fn lookup_offer(params: LookupOfferRequest) -> Self {
+        Self {
+            method: Method::LookupOffer,
+            params: RequestParams::LookupOffer(params),
+        }
+    }
+
+    /// Compose `lookup_address` request
+    #[inline]
+    pub fn lookup_address(params: LookupAddressRequest) -> Self {
+        Self {
+            method: Method::LookupAddress,
+            params: RequestParams::LookupAddress(params),
+        }
+    }
+
     /// Deserialize from [`Value`]
     pub fn from_value(value: Value) -> Result<Self, Error> {
         let template: RequestTemplate = serde_json::from_value(value)?;
@@ -608,6 +762,27 @@ impl Request {
             Method::CancelHoldInvoice => {
                 let params: CancelHoldInvoiceRequest = serde_json::from_value(template.params)?;
                 RequestParams::CancelHoldInvoice(params)
+            }
+            Method::PayOnchain => {
+                let params: PayOnchainRequest = serde_json::from_value(template.params)?;
+                RequestParams::PayOnchain(params)
+            }
+            Method::MakeNewAddress => RequestParams::MakeNewAddress,
+            Method::PayOffer => {
+                let params: PayOfferRequest = serde_json::from_value(template.params)?;
+                RequestParams::PayOffer(params)
+            }
+            Method::MakeOffer => {
+                let params: MakeOfferRequest = serde_json::from_value(template.params)?;
+                RequestParams::MakeOffer(params)
+            }
+            Method::LookupOffer => {
+                let params: LookupOfferRequest = serde_json::from_value(template.params)?;
+                RequestParams::LookupOffer(params)
+            }
+            Method::LookupAddress => {
+                let params: LookupAddressRequest = serde_json::from_value(template.params)?;
+                RequestParams::LookupAddress(params)
             }
             Method::Unknown(name) => {
                 return Err(Error::UnsupportedMethod(Method::Unknown(name)));
@@ -842,6 +1017,85 @@ pub struct CancelHoldInvoiceResponse {}
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct SettleHoldInvoiceResponse {}
 
+/// Pay Onchain Response
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+pub struct PayOnchainResponse {
+    /// Transaction ID
+    pub txid: String,
+}
+
+/// Make New Address Response
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+pub struct MakeNewAddressResponse {
+    /// Bitcoin address
+    pub address: String,
+}
+
+/// Pay Offer Response (BOLT-12)
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+pub struct PayOfferResponse {
+    /// Payment preimage
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub preimage: Option<String>,
+    /// Fees paid in millisatoshis
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub fees_paid: Option<u64>,
+}
+
+/// Make Offer Response (BOLT-12)
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+pub struct MakeOfferResponse {
+    /// BOLT-12 offer string
+    pub offer: String,
+    /// Offer description
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    /// Amount in millisatoshis
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub amount: Option<u64>,
+}
+
+/// Lookup Offer Response
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+pub struct LookupOfferResponse {
+    /// BOLT-12 offer string
+    pub offer: String,
+    /// Offer description
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    /// Amount in millisatoshis
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub amount: Option<u64>,
+    /// Whether the offer is still active
+    pub active: bool,
+    /// Number of payments received via this offer
+    pub num_payments_received: u64,
+    /// Total amount received in millisatoshis
+    pub total_received: u64,
+}
+
+/// Address Transaction Info
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+pub struct AddressTransaction {
+    /// Transaction ID
+    pub txid: String,
+    /// Amount in satoshis
+    pub amount: u64,
+    /// Timestamp in seconds since epoch
+    pub timestamp: Timestamp,
+}
+
+/// Lookup Address Response
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+pub struct LookupAddressResponse {
+    /// Bitcoin address
+    pub address: String,
+    /// Total received in satoshis
+    pub total_received: u64,
+    /// Transactions for this address
+    pub transactions: Vec<AddressTransaction>,
+}
+
 /// NIP47 Response Result
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ResponseResult {
@@ -865,6 +1119,18 @@ pub enum ResponseResult {
     CancelHoldInvoice(CancelHoldInvoiceResponse),
     /// Settle Hold Invoice
     SettleHoldInvoice(SettleHoldInvoiceResponse),
+    /// Pay Onchain
+    PayOnchain(PayOnchainResponse),
+    /// Make New Address
+    MakeNewAddress(MakeNewAddressResponse),
+    /// Pay Offer (BOLT-12)
+    PayOffer(PayOfferResponse),
+    /// Make Offer (BOLT-12)
+    MakeOffer(MakeOfferResponse),
+    /// Lookup Offer
+    LookupOffer(LookupOfferResponse),
+    /// Lookup Address
+    LookupAddress(LookupAddressResponse),
 }
 
 impl Serialize for ResponseResult {
@@ -887,6 +1153,12 @@ impl Serialize for ResponseResult {
             ResponseResult::MakeHoldInvoice(p) => p.serialize(serializer),
             ResponseResult::CancelHoldInvoice(p) => p.serialize(serializer),
             ResponseResult::SettleHoldInvoice(p) => p.serialize(serializer),
+            ResponseResult::PayOnchain(p) => p.serialize(serializer),
+            ResponseResult::MakeNewAddress(p) => p.serialize(serializer),
+            ResponseResult::PayOffer(p) => p.serialize(serializer),
+            ResponseResult::MakeOffer(p) => p.serialize(serializer),
+            ResponseResult::LookupOffer(p) => p.serialize(serializer),
+            ResponseResult::LookupAddress(p) => p.serialize(serializer),
         }
     }
 }
@@ -975,6 +1247,30 @@ impl Response {
                 Method::SettleHoldInvoice => {
                     let result: SettleHoldInvoiceResponse = serde_json::from_value(result)?;
                     ResponseResult::SettleHoldInvoice(result)
+                }
+                Method::PayOnchain => {
+                    let result: PayOnchainResponse = serde_json::from_value(result)?;
+                    ResponseResult::PayOnchain(result)
+                }
+                Method::MakeNewAddress => {
+                    let result: MakeNewAddressResponse = serde_json::from_value(result)?;
+                    ResponseResult::MakeNewAddress(result)
+                }
+                Method::PayOffer => {
+                    let result: PayOfferResponse = serde_json::from_value(result)?;
+                    ResponseResult::PayOffer(result)
+                }
+                Method::MakeOffer => {
+                    let result: MakeOfferResponse = serde_json::from_value(result)?;
+                    ResponseResult::MakeOffer(result)
+                }
+                Method::LookupOffer => {
+                    let result: LookupOfferResponse = serde_json::from_value(result)?;
+                    ResponseResult::LookupOffer(result)
+                }
+                Method::LookupAddress => {
+                    let result: LookupAddressResponse = serde_json::from_value(result)?;
+                    ResponseResult::LookupAddress(result)
                 }
                 Method::Unknown(name) => {
                     return Err(Error::UnsupportedMethod(Method::Unknown(name)));
@@ -1080,6 +1376,84 @@ impl Response {
         }
 
         if let Some(ResponseResult::GetInfo(result)) = self.result {
+            return Ok(result);
+        }
+
+        Err(Error::UnexpectedResult)
+    }
+
+    /// Convert [Response] to [PayOnchainResponse]
+    pub fn to_pay_onchain(self) -> Result<PayOnchainResponse, Error> {
+        if let Some(e) = self.error {
+            return Err(Error::ErrorCode(e));
+        }
+
+        if let Some(ResponseResult::PayOnchain(result)) = self.result {
+            return Ok(result);
+        }
+
+        Err(Error::UnexpectedResult)
+    }
+
+    /// Convert [Response] to [MakeNewAddressResponse]
+    pub fn to_make_new_address(self) -> Result<MakeNewAddressResponse, Error> {
+        if let Some(e) = self.error {
+            return Err(Error::ErrorCode(e));
+        }
+
+        if let Some(ResponseResult::MakeNewAddress(result)) = self.result {
+            return Ok(result);
+        }
+
+        Err(Error::UnexpectedResult)
+    }
+
+    /// Convert [Response] to [PayOfferResponse]
+    pub fn to_pay_offer(self) -> Result<PayOfferResponse, Error> {
+        if let Some(e) = self.error {
+            return Err(Error::ErrorCode(e));
+        }
+
+        if let Some(ResponseResult::PayOffer(result)) = self.result {
+            return Ok(result);
+        }
+
+        Err(Error::UnexpectedResult)
+    }
+
+    /// Convert [Response] to [MakeOfferResponse]
+    pub fn to_make_offer(self) -> Result<MakeOfferResponse, Error> {
+        if let Some(e) = self.error {
+            return Err(Error::ErrorCode(e));
+        }
+
+        if let Some(ResponseResult::MakeOffer(result)) = self.result {
+            return Ok(result);
+        }
+
+        Err(Error::UnexpectedResult)
+    }
+
+    /// Convert [Response] to [LookupOfferResponse]
+    pub fn to_lookup_offer(self) -> Result<LookupOfferResponse, Error> {
+        if let Some(e) = self.error {
+            return Err(Error::ErrorCode(e));
+        }
+
+        if let Some(ResponseResult::LookupOffer(result)) = self.result {
+            return Ok(result);
+        }
+
+        Err(Error::UnexpectedResult)
+    }
+
+    /// Convert [Response] to [LookupAddressResponse]
+    pub fn to_lookup_address(self) -> Result<LookupAddressResponse, Error> {
+        if let Some(e) = self.error {
+            return Err(Error::ErrorCode(e));
+        }
+
+        if let Some(ResponseResult::LookupAddress(result)) = self.result {
             return Ok(result);
         }
 
