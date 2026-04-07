@@ -484,6 +484,20 @@ pub enum TransactionState {
     Accepted,
 }
 
+/// Payment method for a transaction
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PaymentMethod {
+    /// BOLT-11 lightning invoice
+    Bolt11,
+    /// BOLT-12 offer/refund
+    Bolt12,
+    /// Keysend (spontaneous payment)
+    Keysend,
+    /// On-chain bitcoin transaction
+    Onchain,
+}
+
 /// List Transactions Request
 #[derive(Debug, Clone, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct ListTransactionsRequest {
@@ -506,6 +520,9 @@ pub struct ListTransactionsRequest {
     #[serde(rename = "type")]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub transaction_type: Option<TransactionType>,
+    /// Filter by payment method
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub payment_method: Option<PaymentMethod>,
 }
 
 /// Make Hold Invoice Request
@@ -960,6 +977,9 @@ pub struct LookupInvoiceResponse {
     /// Optional metadata about the payment
     #[serde(skip_serializing_if = "Option::is_none")]
     pub metadata: Option<Value>,
+    /// Payment method used
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub payment_method: Option<PaymentMethod>,
 }
 
 /// Get Balance Response
@@ -967,6 +987,12 @@ pub struct LookupInvoiceResponse {
 pub struct GetBalanceResponse {
     /// Balance amount in msats
     pub balance: u64,
+    /// Lightning balance in msats
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub lightning_balance: Option<u64>,
+    /// On-chain balance in msats
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub onchain_balance: Option<u64>,
 }
 
 /// Get Info Response
@@ -2259,6 +2285,7 @@ mod tests {
                     description_hash: None,
                     payment_hash: String::new(),
                     metadata: None,
+                    payment_method: None,
                     settled_at: None,
                     preimage: None,
                 },
@@ -2310,6 +2337,7 @@ mod tests {
                     description_hash: None,
                     payment_hash: String::new(),
                     metadata: None,
+                    payment_method: None,
                     settled_at: None,
                     preimage: None
                 }

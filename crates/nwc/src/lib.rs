@@ -218,7 +218,7 @@ impl NostrWalletConnect {
     pub async fn get_balance(&self) -> Result<u64, Error> {
         let req = Request::get_balance();
         let res: Response = self.send_request(req).await?;
-        let GetBalanceResponse { balance } = res.to_get_balance()?;
+        let GetBalanceResponse { balance, .. } = res.to_get_balance()?;
         Ok(balance)
     }
 
