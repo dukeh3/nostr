@@ -126,6 +126,9 @@ pub enum ErrorCode {
     /// An internal error
     #[serde(rename = "INTERNAL")]
     Internal,
+    /// The encryption scheme is not supported
+    #[serde(rename = "UNSUPPORTED_ENCRYPTION")]
+    UnsupportedEncryption,
     /// Other error
     #[serde(rename = "OTHER")]
     Other,

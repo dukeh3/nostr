@@ -22,7 +22,7 @@ futures = "0.3"
 hex = { workspace = true, features = ["std"] }
 lru.workspace = true
 negentropy = { workspace = true, features = ["std"] }
-nostr = { workspace = true, features = ["std", "rand", "os-rng"] }
+nostr = { workspace = true, features = ["std", "rand", "os-rng", "nip44"] }
 nostr-database.workspace = true
 nostr-gossip.workspace = true
 tokio = { workspace = true, features = ["macros", "sync"] }

@@ -16,7 +16,7 @@ all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
 
 [dependencies]
-nostr = { workspace = true, features = ["std", "nip47"] }
+nostr = { workspace = true, features = ["std", "nip47", "nip44", "rand", "os-rng"] }
 nostr-sdk.workspace = true
 tracing = { workspace = true, features = ["std"] }
 
