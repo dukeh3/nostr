@@ -181,6 +181,8 @@ pub enum Method {
     LookupOffer,
     /// Lookup Address
     LookupAddress,
+    /// Subscribe to notifications
+    SubscribeNotifications,
     /// Unknown method
     Unknown(String),
 }
@@ -237,6 +239,7 @@ impl Method {
             Self::MakeOffer => "make_offer",
             Self::LookupOffer => "lookup_offer",
             Self::LookupAddress => "lookup_address",
+            Self::SubscribeNotifications => "subscribe_notifications",
             Self::Unknown(method) => method.as_str(),
         }
     }
@@ -263,6 +266,7 @@ impl FromStr for Method {
             "make_offer" => Ok(Self::MakeOffer),
             "lookup_offer" => Ok(Self::LookupOffer),
             "lookup_address" => Ok(Self::LookupAddress),
+            "subscribe_notifications" => Ok(Self::SubscribeNotifications),
             m => Ok(Self::Unknown(m.to_string())),
         }
     }
@@ -322,6 +326,8 @@ pub enum RequestParams {
     LookupOffer(LookupOfferRequest),
     /// Lookup Address
     LookupAddress(LookupAddressRequest),
+    /// Subscribe to notifications
+    SubscribeNotifications(SubscribeNotificationsRequest),
 }
 
 impl Serialize for RequestParams {
@@ -355,6 +361,7 @@ impl Serialize for RequestParams {
             RequestParams::MakeOffer(p) => p.serialize(serializer),
             RequestParams::LookupOffer(p) => p.serialize(serializer),
             RequestParams::LookupAddress(p) => p.serialize(serializer),
+            RequestParams::SubscribeNotifications(p) => p.serialize(serializer),
         }
     }
 }
@@ -588,6 +595,17 @@ pub struct LookupAddressRequest {
     pub address: String,
 }
 
+/// Subscribe Notifications Request
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct SubscribeNotificationsRequest {
+    /// Notification types to subscribe to (e.g. ["payment_received", "payment_sent"])
+    pub types: Vec<String>,
+}
+
+/// Subscribe Notifications Response (empty on success)
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+pub struct SubscribeNotificationsResponse {}
+
 /// NIP47 Request
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize)]
 pub struct Request {
@@ -724,6 +742,15 @@ impl Request {
         }
     }
 
+    /// Compose `subscribe_notifications` request
+    #[inline]
+    pub fn subscribe_notifications(params: SubscribeNotificationsRequest) -> Self {
+        Self {
+            method: Method::SubscribeNotifications,
+            params: RequestParams::SubscribeNotifications(params),
+        }
+    }
+
     /// Deserialize from [`Value`]
     pub fn from_value(value: Value) -> Result<Self, Error> {
         let template: RequestTemplate = serde_json::from_value(value)?;
@@ -783,6 +810,10 @@ impl Request {
             Method::LookupAddress => {
                 let params: LookupAddressRequest = serde_json::from_value(template.params)?;
                 RequestParams::LookupAddress(params)
+            }
+            Method::SubscribeNotifications => {
+                let params: SubscribeNotificationsRequest = serde_json::from_value(template.params)?;
+                RequestParams::SubscribeNotifications(params)
             }
             Method::Unknown(name) => {
                 return Err(Error::UnsupportedMethod(Method::Unknown(name)));
@@ -1131,6 +1162,8 @@ pub enum ResponseResult {
     LookupOffer(LookupOfferResponse),
     /// Lookup Address
     LookupAddress(LookupAddressResponse),
+    /// Subscribe Notifications
+    SubscribeNotifications(SubscribeNotificationsResponse),
 }
 
 impl Serialize for ResponseResult {
@@ -1159,6 +1192,7 @@ impl Serialize for ResponseResult {
             ResponseResult::MakeOffer(p) => p.serialize(serializer),
             ResponseResult::LookupOffer(p) => p.serialize(serializer),
             ResponseResult::LookupAddress(p) => p.serialize(serializer),
+            ResponseResult::SubscribeNotifications(p) => p.serialize(serializer),
         }
     }
 }
@@ -1271,6 +1305,10 @@ impl Response {
                 Method::LookupAddress => {
                     let result: LookupAddressResponse = serde_json::from_value(result)?;
                     ResponseResult::LookupAddress(result)
+                }
+                Method::SubscribeNotifications => {
+                    let result: SubscribeNotificationsResponse = serde_json::from_value(result)?;
+                    ResponseResult::SubscribeNotifications(result)
                 }
                 Method::Unknown(name) => {
                     return Err(Error::UnsupportedMethod(Method::Unknown(name)));
@@ -1441,6 +1479,19 @@ impl Response {
         }
 
         if let Some(ResponseResult::LookupOffer(result)) = self.result {
+            return Ok(result);
+        }
+
+        Err(Error::UnexpectedResult)
+    }
+
+    /// Convert [Response] to [SubscribeNotificationsResponse]
+    pub fn to_subscribe_notifications(self) -> Result<SubscribeNotificationsResponse, Error> {
+        if let Some(e) = self.error {
+            return Err(Error::ErrorCode(e));
+        }
+
+        if let Some(ResponseResult::SubscribeNotifications(result)) = self.result {
             return Ok(result);
         }
 
@@ -1849,6 +1900,172 @@ pub struct HoldInvoiceAcceptedNotification {
     /// Optional metadata about the payment
     #[serde(skip_serializing_if = "Option::is_none")]
     pub metadata: Option<Value>,
+}
+
+/// NNC (Nostr Node Control) notification type
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+pub enum NncNotificationType {
+    /// A channel has been opened and is ready
+    #[serde(rename = "channel_opened")]
+    ChannelOpened,
+    /// A channel has been closed
+    #[serde(rename = "channel_closed")]
+    ChannelClosed,
+}
+
+impl fmt::Display for NncNotificationType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            NncNotificationType::ChannelOpened => write!(f, "channel_opened"),
+            NncNotificationType::ChannelClosed => write!(f, "channel_closed"),
+        }
+    }
+}
+
+impl FromStr for NncNotificationType {
+    type Err = Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "channel_opened" => Ok(NncNotificationType::ChannelOpened),
+            "channel_closed" => Ok(NncNotificationType::ChannelClosed),
+            _ => Err(Error::InvalidURI),
+        }
+    }
+}
+
+/// NNC channel opened notification
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+pub struct ChannelOpenedNotification {
+    /// Channel ID
+    pub id: String,
+    /// Short channel ID (block x tx x vout format)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub short_channel_id: Option<String>,
+    /// Counterparty node public key
+    pub peer_pubkey: String,
+    /// Channel capacity in millisatoshis
+    pub capacity: u64,
+    /// Local balance in millisatoshis
+    pub local_balance: u64,
+    /// Remote balance in millisatoshis
+    pub remote_balance: u64,
+    /// Funding transaction ID
+    pub funding_txid: String,
+    /// Whether the channel is private (unannounced)
+    pub is_private: bool,
+}
+
+/// NNC channel closed notification
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+pub struct ChannelClosedNotification {
+    /// Channel ID
+    pub id: String,
+    /// Short channel ID
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub short_channel_id: Option<String>,
+    /// Counterparty node public key
+    pub peer_pubkey: String,
+    /// Channel capacity in millisatoshis
+    pub capacity: u64,
+    /// Closing transaction ID
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub closing_txid: Option<String>,
+    /// Close type: "cooperative", "force", or "unknown"
+    pub close_type: String,
+}
+
+/// NNC notification result
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum NncNotificationResult {
+    /// Channel opened
+    ChannelOpened(ChannelOpenedNotification),
+    /// Channel closed
+    ChannelClosed(ChannelClosedNotification),
+}
+
+impl Serialize for NncNotificationResult {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        match self {
+            NncNotificationResult::ChannelOpened(p) => p.serialize(serializer),
+            NncNotificationResult::ChannelClosed(p) => p.serialize(serializer),
+        }
+    }
+}
+
+/// NNC notification (wrapper with type + result)
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct NncNotification {
+    /// Notification type
+    pub notification_type: NncNotificationType,
+    /// Notification result
+    pub notification: NncNotificationResult,
+}
+
+/// NNC Notification deserialization template
+#[derive(Debug, Clone, Deserialize)]
+struct NncNotificationTemplate {
+    /// Notification type
+    pub notification_type: NncNotificationType,
+    /// Notification result
+    pub notification: Value,
+}
+
+impl NncNotification {
+    /// Deserialize from JSON [`Value`]
+    pub fn from_value(value: Value) -> Result<Self, Error> {
+        let template: NncNotificationTemplate = serde_json::from_value(value)?;
+
+        let result = template.notification;
+        let result = match template.notification_type {
+            NncNotificationType::ChannelOpened => {
+                let result: ChannelOpenedNotification = serde_json::from_value(result)?;
+                NncNotificationResult::ChannelOpened(result)
+            }
+            NncNotificationType::ChannelClosed => {
+                let result: ChannelClosedNotification = serde_json::from_value(result)?;
+                NncNotificationResult::ChannelClosed(result)
+            }
+        };
+
+        Ok(Self {
+            notification_type: template.notification_type,
+            notification: result,
+        })
+    }
+
+    /// Convert [NncNotification] to [ChannelOpenedNotification]
+    pub fn to_channel_opened(self) -> Result<ChannelOpenedNotification, Error> {
+        if let NncNotificationResult::ChannelOpened(result) = self.notification {
+            return Ok(result);
+        }
+        Err(Error::UnexpectedResult)
+    }
+
+    /// Convert [NncNotification] to [ChannelClosedNotification]
+    pub fn to_channel_closed(self) -> Result<ChannelClosedNotification, Error> {
+        if let NncNotificationResult::ChannelClosed(result) = self.notification {
+            return Ok(result);
+        }
+        Err(Error::UnexpectedResult)
+    }
+}
+
+impl JsonUtil for NncNotification {
+    type Err = Error;
+}
+
+impl<'de> Deserialize<'de> for NncNotification {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let value: Value = Value::deserialize(deserializer).map_err(serde::de::Error::custom)?;
+        Self::from_value(value).map_err(serde::de::Error::custom)
+    }
 }
 
 fn deserialize_empty_string_as_none<'de, D, T>(deserializer: D) -> Result<Option<T>, D::Error>
