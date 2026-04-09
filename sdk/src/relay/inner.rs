@@ -753,17 +753,18 @@ impl InnerRelay {
         let ping: PingTracker = PingTracker::default();
 
         let (ingester_tx, ingester_rx) = mpsc::unbounded_channel();
+        let (pong_tx, mut pong_rx) = mpsc::unbounded_channel::<Vec<u8>>();
 
         // Wait that one of the futures terminates/completes
         // Add also termination here, to allow closing the connection in case of termination request.
         tokio::select! {
             // Message sender handler
-            res = self.sender_message_handler(&mut ws_tx, rx_nostr, &ping) => match res {
+            res = self.sender_message_handler(&mut ws_tx, rx_nostr, &ping, &mut pong_rx) => match res {
                 Ok(()) => tracing::trace!(url = %self.url, "Relay sender exited."),
                 Err(e) => tracing::error!(url = %self.url, error = %e, "Relay sender exited with error.")
             },
             // Message receiver handler
-            res = self.receiver_message_handler(ws_rx, &ping, ingester_tx) => match res {
+            res = self.receiver_message_handler(ws_rx, &ping, ingester_tx, pong_tx) => match res {
                 Ok(()) => tracing::trace!(url = %self.url, "Relay receiver exited."),
                 Err(e) => tracing::error!(url = %self.url, error = %e, "Relay receiver exited with error.")
             },
@@ -792,9 +793,12 @@ impl InnerRelay {
         ws_tx: &mut WebSocketSink,
         rx_nostr: &mut MutexGuard<'_, Receiver<JsonMessageItem>>,
         ping: &PingTracker,
+        pong_rx: &mut mpsc::UnboundedReceiver<Vec<u8>>,
     ) -> Result<(), Error> {
         #[cfg(target_arch = "wasm32")]
         let _ping = ping;
+        #[cfg(target_arch = "wasm32")]
+        let _pong_rx = pong_rx;
 
         loop {
             tokio::select! {
@@ -851,6 +855,15 @@ impl InnerRelay {
                         tracing::debug!(url = %self.url, nonce = %nonce, "Ping sent.");
                     }
                 }
+                // PONG channel receiver: relay sent us a PING, forward the PONG through the write half
+                Some(data) = pong_rx.recv() => {
+                    #[cfg(not(target_arch = "wasm32"))]
+                    {
+                        let msg = Message::Pong(data);
+                        send_ws_msg(ws_tx, msg).await?;
+                        tracing::trace!(url = %self.url, "Sent PONG response to relay.");
+                    }
+                }
                 else => break
             }
         }
@@ -863,9 +876,12 @@ impl InnerRelay {
         mut ws_rx: WebSocketStream,
         ping: &PingTracker,
         ingester_tx: mpsc::UnboundedSender<IngesterCommand>,
+        pong_tx: mpsc::UnboundedSender<Vec<u8>>,
     ) -> Result<(), Error> {
         #[cfg(target_arch = "wasm32")]
         let _ping = ping;
+        #[cfg(target_arch = "wasm32")]
+        let _pong_tx = pong_tx;
 
         while let Some(msg) = ws_rx.next().await {
             match msg? {
@@ -913,6 +929,13 @@ impl InnerRelay {
                     break;
                 }
                 #[cfg(not(target_arch = "wasm32"))]
+                Message::Ping(data) => {
+                    if let Err(e) = pong_tx.send(data) {
+                        tracing::error!(url = %self.url, "Failed to queue PONG response: {e}");
+                    }
+                }
+                #[cfg(not(target_arch = "wasm32"))]
+                #[allow(unreachable_patterns)]
                 _ => {}
             }
         }
