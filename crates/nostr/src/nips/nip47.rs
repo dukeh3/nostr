@@ -184,6 +184,8 @@ pub enum Method {
     LookupOffer,
     /// Lookup Address
     LookupAddress,
+    /// Pay BIP-321 URI
+    PayBip321,
     /// Subscribe to notifications
     SubscribeNotifications,
     /// Unknown method
@@ -242,6 +244,7 @@ impl Method {
             Self::MakeOffer => "make_offer",
             Self::LookupOffer => "lookup_offer",
             Self::LookupAddress => "lookup_address",
+            Self::PayBip321 => "pay_bip321",
             Self::SubscribeNotifications => "subscribe_notifications",
             Self::Unknown(method) => method.as_str(),
         }
@@ -269,6 +272,7 @@ impl FromStr for Method {
             "make_offer" => Ok(Self::MakeOffer),
             "lookup_offer" => Ok(Self::LookupOffer),
             "lookup_address" => Ok(Self::LookupAddress),
+            "pay_bip321" => Ok(Self::PayBip321),
             "subscribe_notifications" => Ok(Self::SubscribeNotifications),
             m => Ok(Self::Unknown(m.to_string())),
         }
@@ -329,6 +333,8 @@ pub enum RequestParams {
     LookupOffer(LookupOfferRequest),
     /// Lookup Address
     LookupAddress(LookupAddressRequest),
+    /// Pay BIP-321 URI
+    PayBip321(PayBip321Request),
     /// Subscribe to notifications
     SubscribeNotifications(SubscribeNotificationsRequest),
 }
@@ -364,6 +370,7 @@ impl Serialize for RequestParams {
             RequestParams::MakeOffer(p) => p.serialize(serializer),
             RequestParams::LookupOffer(p) => p.serialize(serializer),
             RequestParams::LookupAddress(p) => p.serialize(serializer),
+            RequestParams::PayBip321(p) => p.serialize(serializer),
             RequestParams::SubscribeNotifications(p) => p.serialize(serializer),
         }
     }
@@ -615,6 +622,29 @@ pub struct LookupAddressRequest {
     pub address: String,
 }
 
+/// Pay BIP-321 URI Request
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct PayBip321Request {
+    /// BIP-321 `bitcoin:` URI string
+    pub uri: String,
+}
+
+/// Pay BIP-321 URI Response
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+pub struct PayBip321Response {
+    /// Payment preimage (for lightning payments)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub preimage: Option<String>,
+    /// Transaction ID (for on-chain payments)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub txid: Option<String>,
+    /// Fees paid in millisatoshis
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub fees_paid: Option<u64>,
+    /// Which payment method was used: "bolt11", "bolt12", "onchain"
+    pub payment_method: String,
+}
+
 /// Subscribe Notifications Request
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct SubscribeNotificationsRequest {
@@ -762,6 +792,15 @@ impl Request {
         }
     }
 
+    /// Compose `pay_bip321` request
+    #[inline]
+    pub fn pay_bip321(params: PayBip321Request) -> Self {
+        Self {
+            method: Method::PayBip321,
+            params: RequestParams::PayBip321(params),
+        }
+    }
+
     /// Compose `subscribe_notifications` request
     #[inline]
     pub fn subscribe_notifications(params: SubscribeNotificationsRequest) -> Self {
@@ -830,6 +869,10 @@ impl Request {
             Method::LookupAddress => {
                 let params: LookupAddressRequest = serde_json::from_value(template.params)?;
                 RequestParams::LookupAddress(params)
+            }
+            Method::PayBip321 => {
+                let params: PayBip321Request = serde_json::from_value(template.params)?;
+                RequestParams::PayBip321(params)
             }
             Method::SubscribeNotifications => {
                 let params: SubscribeNotificationsRequest = serde_json::from_value(template.params)?;
@@ -1191,6 +1234,8 @@ pub enum ResponseResult {
     LookupOffer(LookupOfferResponse),
     /// Lookup Address
     LookupAddress(LookupAddressResponse),
+    /// Pay BIP-321 URI
+    PayBip321(PayBip321Response),
     /// Subscribe Notifications
     SubscribeNotifications(SubscribeNotificationsResponse),
 }
@@ -1221,6 +1266,7 @@ impl Serialize for ResponseResult {
             ResponseResult::MakeOffer(p) => p.serialize(serializer),
             ResponseResult::LookupOffer(p) => p.serialize(serializer),
             ResponseResult::LookupAddress(p) => p.serialize(serializer),
+            ResponseResult::PayBip321(p) => p.serialize(serializer),
             ResponseResult::SubscribeNotifications(p) => p.serialize(serializer),
         }
     }
@@ -1334,6 +1380,10 @@ impl Response {
                 Method::LookupAddress => {
                     let result: LookupAddressResponse = serde_json::from_value(result)?;
                     ResponseResult::LookupAddress(result)
+                }
+                Method::PayBip321 => {
+                    let result: PayBip321Response = serde_json::from_value(result)?;
+                    ResponseResult::PayBip321(result)
                 }
                 Method::SubscribeNotifications => {
                     let result: SubscribeNotificationsResponse = serde_json::from_value(result)?;
@@ -1521,6 +1571,19 @@ impl Response {
         }
 
         if let Some(ResponseResult::SubscribeNotifications(result)) = self.result {
+            return Ok(result);
+        }
+
+        Err(Error::UnexpectedResult)
+    }
+
+    /// Convert [Response] to [PayBip321Response]
+    pub fn to_pay_bip321(self) -> Result<PayBip321Response, Error> {
+        if let Some(e) = self.error {
+            return Err(Error::ErrorCode(e));
+        }
+
+        if let Some(ResponseResult::PayBip321(result)) = self.result {
             return Ok(result);
         }
 
