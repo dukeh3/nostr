@@ -1009,8 +1009,9 @@ pub struct LookupInvoiceResponse {
     pub amount: u64,
     /// Fees paid in millisatoshis
     pub fees_paid: u64,
-    /// Creation timestamp in seconds since epoch
-    pub created_at: Timestamp,
+    /// Creation timestamp in seconds since epoch, optional if unknown
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub created_at: Option<Timestamp>,
     /// Expiration timestamp in seconds since epoch
     #[serde(skip_serializing_if = "Option::is_none")]
     pub expires_at: Option<Timestamp>,
@@ -1946,8 +1947,9 @@ pub struct PaymentNotification {
     pub amount: u64,
     /// Fees paid in millisatoshis
     pub fees_paid: u64,
-    /// Creation timestamp in seconds since epoch
-    pub created_at: Timestamp,
+    /// Creation timestamp in seconds since epoch, optional if unknown
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub created_at: Option<Timestamp>,
     /// Expiration timestamp in seconds since epoch
     #[serde(skip_serializing_if = "Option::is_none")]
     pub expires_at: Option<Timestamp>,
@@ -2343,7 +2345,7 @@ mod tests {
                     description: Some(String::from("string")),
                     amount: 123,
                     fees_paid: 1,
-                    created_at: Timestamp::from(123456),
+                    created_at: Some(Timestamp::from(123456)),
                     expires_at: Some(Timestamp::from(1234567)),
                     description_hash: None,
                     payment_hash: String::new(),
@@ -2395,7 +2397,7 @@ mod tests {
                     description: Some(String::from("string")),
                     amount: 123,
                     fees_paid: 1,
-                    created_at: Timestamp::from(123456),
+                    created_at: Some(Timestamp::from(123456)),
                     expires_at: Some(Timestamp::from(1234567)),
                     description_hash: None,
                     payment_hash: String::new(),
@@ -2443,7 +2445,7 @@ mod tests {
             payment_hash: String::from("string4"),
             amount: 1234,
             fees_paid: 123,
-            created_at: Timestamp::from_secs(123456789),
+            created_at: Some(Timestamp::from_secs(123456789)),
             expires_at: Some(Timestamp::from_secs(546132287)),
             settled_at: Timestamp::from_secs(843548111),
             metadata: Some(Value::Object(serde_json::Map::new())),
