@@ -186,6 +186,8 @@ pub enum Method {
     LookupAddress,
     /// Pay BIP-321 URI
     PayBip321,
+    /// Make BIP-321 URI
+    MakeBip321,
     /// Subscribe to notifications
     SubscribeNotifications,
     /// Estimate on-chain fees
@@ -249,6 +251,7 @@ impl Method {
             Self::LookupOffer => "lookup_offer",
             Self::LookupAddress => "lookup_address",
             Self::PayBip321 => "pay_bip321",
+            Self::MakeBip321 => "make_bip321",
             Self::SubscribeNotifications => "subscribe_notifications",
             Self::EstimateOnchainFees => "estimate_onchain_fees",
             Self::EstimateRoutingFees => "estimate_routing_fees",
@@ -279,6 +282,7 @@ impl FromStr for Method {
             "lookup_offer" => Ok(Self::LookupOffer),
             "lookup_address" => Ok(Self::LookupAddress),
             "pay_bip321" => Ok(Self::PayBip321),
+            "make_bip321" => Ok(Self::MakeBip321),
             "subscribe_notifications" => Ok(Self::SubscribeNotifications),
             "estimate_onchain_fees" => Ok(Self::EstimateOnchainFees),
             "estimate_routing_fees" => Ok(Self::EstimateRoutingFees),
@@ -343,6 +347,8 @@ pub enum RequestParams {
     LookupAddress(LookupAddressRequest),
     /// Pay BIP-321 URI
     PayBip321(PayBip321Request),
+    /// Make BIP-321 URI
+    MakeBip321(MakeBip321Request),
     /// Subscribe to notifications
     SubscribeNotifications(SubscribeNotificationsRequest),
     /// Estimate on-chain fees
@@ -383,6 +389,7 @@ impl Serialize for RequestParams {
             RequestParams::LookupOffer(p) => p.serialize(serializer),
             RequestParams::LookupAddress(p) => p.serialize(serializer),
             RequestParams::PayBip321(p) => p.serialize(serializer),
+            RequestParams::MakeBip321(p) => p.serialize(serializer),
             RequestParams::SubscribeNotifications(p) => p.serialize(serializer),
             RequestParams::EstimateOnchainFees => {
                 let map = serializer.serialize_map(None)?;
@@ -662,6 +669,53 @@ pub struct PayBip321Response {
     pub payment_method: String,
 }
 
+/// Method entry for make_bip321 request
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct Bip321MethodEntry {
+    /// Payment method name (e.g. "bolt11", "bolt12", "onchain", "sp")
+    pub method: String,
+    /// Optional expiry in seconds
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub expiry: Option<u64>,
+    /// Optional address type (e.g. "p2tr", "p2wpkh")
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub address_type: Option<String>,
+}
+
+/// Make BIP-321 URI Request
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct MakeBip321Request {
+    /// Amount in millisatoshis
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub amount: Option<u64>,
+    /// Label for the address
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub label: Option<String>,
+    /// Message describing the purpose
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub message: Option<String>,
+    /// Which payment methods to include
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub methods: Option<Vec<Bip321MethodEntry>>,
+}
+
+/// Make BIP-321 URI Response
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+pub struct MakeBip321Response {
+    /// The generated BIP-321 `bitcoin:` URI
+    pub uri: String,
+}
+
+/// BIP-321 method capability for get_info
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+pub struct Bip321MethodInfo {
+    /// Payment method name (e.g. "bolt11", "bolt12", "onchain", "sp")
+    pub method: String,
+    /// Supported address types for this method
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub address_types: Option<Vec<String>>,
+}
+
 /// Subscribe Notifications Request
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct SubscribeNotificationsRequest {
@@ -843,6 +897,15 @@ impl Request {
         }
     }
 
+    /// Compose `make_bip321` request
+    #[inline]
+    pub fn make_bip321(params: MakeBip321Request) -> Self {
+        Self {
+            method: Method::MakeBip321,
+            params: RequestParams::MakeBip321(params),
+        }
+    }
+
     /// Compose `subscribe_notifications` request
     #[inline]
     pub fn subscribe_notifications(params: SubscribeNotificationsRequest) -> Self {
@@ -915,6 +978,10 @@ impl Request {
             Method::PayBip321 => {
                 let params: PayBip321Request = serde_json::from_value(template.params)?;
                 RequestParams::PayBip321(params)
+            }
+            Method::MakeBip321 => {
+                let params: MakeBip321Request = serde_json::from_value(template.params)?;
+                RequestParams::MakeBip321(params)
             }
             Method::SubscribeNotifications => {
                 let params: SubscribeNotificationsRequest = serde_json::from_value(template.params)?;
@@ -1124,6 +1191,10 @@ pub struct GetInfoResponse {
     #[serde(default)]
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub notifications: Vec<String>,
+    /// BIP-321 payment methods supported by this wallet
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub bip321_methods: Option<Vec<Bip321MethodInfo>>,
 }
 
 /// Make Hold Invoice Response
@@ -1284,6 +1355,8 @@ pub enum ResponseResult {
     LookupAddress(LookupAddressResponse),
     /// Pay BIP-321 URI
     PayBip321(PayBip321Response),
+    /// Make BIP-321 URI
+    MakeBip321(MakeBip321Response),
     /// Subscribe Notifications
     SubscribeNotifications(SubscribeNotificationsResponse),
     /// Estimate On-chain Fees
@@ -1319,6 +1392,7 @@ impl Serialize for ResponseResult {
             ResponseResult::LookupOffer(p) => p.serialize(serializer),
             ResponseResult::LookupAddress(p) => p.serialize(serializer),
             ResponseResult::PayBip321(p) => p.serialize(serializer),
+            ResponseResult::MakeBip321(p) => p.serialize(serializer),
             ResponseResult::SubscribeNotifications(p) => p.serialize(serializer),
             ResponseResult::EstimateOnchainFees(p) => p.serialize(serializer),
             ResponseResult::EstimateRoutingFees(p) => p.serialize(serializer),
@@ -1438,6 +1512,10 @@ impl Response {
                 Method::PayBip321 => {
                     let result: PayBip321Response = serde_json::from_value(result)?;
                     ResponseResult::PayBip321(result)
+                }
+                Method::MakeBip321 => {
+                    let result: MakeBip321Response = serde_json::from_value(result)?;
+                    ResponseResult::MakeBip321(result)
                 }
                 Method::SubscribeNotifications => {
                     let result: SubscribeNotificationsResponse = serde_json::from_value(result)?;
