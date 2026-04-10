@@ -188,6 +188,10 @@ pub enum Method {
     PayBip321,
     /// Subscribe to notifications
     SubscribeNotifications,
+    /// Estimate on-chain fees
+    EstimateOnchainFees,
+    /// Estimate routing fees
+    EstimateRoutingFees,
     /// Unknown method
     Unknown(String),
 }
@@ -246,6 +250,8 @@ impl Method {
             Self::LookupAddress => "lookup_address",
             Self::PayBip321 => "pay_bip321",
             Self::SubscribeNotifications => "subscribe_notifications",
+            Self::EstimateOnchainFees => "estimate_onchain_fees",
+            Self::EstimateRoutingFees => "estimate_routing_fees",
             Self::Unknown(method) => method.as_str(),
         }
     }
@@ -274,6 +280,8 @@ impl FromStr for Method {
             "lookup_address" => Ok(Self::LookupAddress),
             "pay_bip321" => Ok(Self::PayBip321),
             "subscribe_notifications" => Ok(Self::SubscribeNotifications),
+            "estimate_onchain_fees" => Ok(Self::EstimateOnchainFees),
+            "estimate_routing_fees" => Ok(Self::EstimateRoutingFees),
             m => Ok(Self::Unknown(m.to_string())),
         }
     }
@@ -337,6 +345,10 @@ pub enum RequestParams {
     PayBip321(PayBip321Request),
     /// Subscribe to notifications
     SubscribeNotifications(SubscribeNotificationsRequest),
+    /// Estimate on-chain fees
+    EstimateOnchainFees,
+    /// Estimate routing fees
+    EstimateRoutingFees(EstimateRoutingFeesRequest),
 }
 
 impl Serialize for RequestParams {
@@ -372,6 +384,11 @@ impl Serialize for RequestParams {
             RequestParams::LookupAddress(p) => p.serialize(serializer),
             RequestParams::PayBip321(p) => p.serialize(serializer),
             RequestParams::SubscribeNotifications(p) => p.serialize(serializer),
+            RequestParams::EstimateOnchainFees => {
+                let map = serializer.serialize_map(None)?;
+                map.end()
+            }
+            RequestParams::EstimateRoutingFees(p) => p.serialize(serializer),
         }
     }
 }
@@ -656,6 +673,31 @@ pub struct SubscribeNotificationsRequest {
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct SubscribeNotificationsResponse {}
 
+/// Estimate Routing Fees Request
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct EstimateRoutingFeesRequest {
+    /// Destination node pubkey
+    pub destination: String,
+    /// Payment amount in millisatoshis
+    pub amount: u64,
+}
+
+/// Estimate Onchain Fees Response
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+pub struct EstimateOnchainFeesResponse {
+    /// Map of confirmation target (in blocks) to estimated fee rate in sat/vbyte
+    pub fees: serde_json::Map<String, Value>,
+}
+
+/// Estimate Routing Fees Response
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+pub struct EstimateRoutingFeesResponse {
+    /// Estimated fee in millisatoshis
+    pub fee: u64,
+    /// Estimated CLTV delta
+    pub time_lock_delay: u32,
+}
+
 /// NIP47 Request
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize)]
 pub struct Request {
@@ -877,6 +919,11 @@ impl Request {
             Method::SubscribeNotifications => {
                 let params: SubscribeNotificationsRequest = serde_json::from_value(template.params)?;
                 RequestParams::SubscribeNotifications(params)
+            }
+            Method::EstimateOnchainFees => RequestParams::EstimateOnchainFees,
+            Method::EstimateRoutingFees => {
+                let params: EstimateRoutingFeesRequest = serde_json::from_value(template.params)?;
+                RequestParams::EstimateRoutingFees(params)
             }
             Method::Unknown(name) => {
                 return Err(Error::UnsupportedMethod(Method::Unknown(name)));
@@ -1239,6 +1286,10 @@ pub enum ResponseResult {
     PayBip321(PayBip321Response),
     /// Subscribe Notifications
     SubscribeNotifications(SubscribeNotificationsResponse),
+    /// Estimate On-chain Fees
+    EstimateOnchainFees(EstimateOnchainFeesResponse),
+    /// Estimate Routing Fees
+    EstimateRoutingFees(EstimateRoutingFeesResponse),
 }
 
 impl Serialize for ResponseResult {
@@ -1269,6 +1320,8 @@ impl Serialize for ResponseResult {
             ResponseResult::LookupAddress(p) => p.serialize(serializer),
             ResponseResult::PayBip321(p) => p.serialize(serializer),
             ResponseResult::SubscribeNotifications(p) => p.serialize(serializer),
+            ResponseResult::EstimateOnchainFees(p) => p.serialize(serializer),
+            ResponseResult::EstimateRoutingFees(p) => p.serialize(serializer),
         }
     }
 }
@@ -1389,6 +1442,14 @@ impl Response {
                 Method::SubscribeNotifications => {
                     let result: SubscribeNotificationsResponse = serde_json::from_value(result)?;
                     ResponseResult::SubscribeNotifications(result)
+                }
+                Method::EstimateOnchainFees => {
+                    let result: EstimateOnchainFeesResponse = serde_json::from_value(result)?;
+                    ResponseResult::EstimateOnchainFees(result)
+                }
+                Method::EstimateRoutingFees => {
+                    let result: EstimateRoutingFeesResponse = serde_json::from_value(result)?;
+                    ResponseResult::EstimateRoutingFees(result)
                 }
                 Method::Unknown(name) => {
                     return Err(Error::UnsupportedMethod(Method::Unknown(name)));
