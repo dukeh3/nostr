@@ -184,6 +184,14 @@ pub enum Method {
     LookupOffer,
     /// Lookup Address
     LookupAddress,
+    /// List Invoices
+    ListInvoices,
+    /// List Offers
+    ListOffers,
+    /// Disable Offer
+    DisableOffer,
+    /// List Addresses
+    ListAddresses,
     /// Pay BIP-321 URI
     PayBip321,
     /// Make BIP-321 URI
@@ -250,6 +258,10 @@ impl Method {
             Self::MakeOffer => "make_offer",
             Self::LookupOffer => "lookup_offer",
             Self::LookupAddress => "lookup_address",
+            Self::ListInvoices => "list_invoices",
+            Self::ListOffers => "list_offers",
+            Self::DisableOffer => "disable_offer",
+            Self::ListAddresses => "list_addresses",
             Self::PayBip321 => "pay_bip321",
             Self::MakeBip321 => "make_bip321",
             Self::SubscribeNotifications => "subscribe_notifications",
@@ -281,6 +293,10 @@ impl FromStr for Method {
             "make_offer" => Ok(Self::MakeOffer),
             "lookup_offer" => Ok(Self::LookupOffer),
             "lookup_address" => Ok(Self::LookupAddress),
+            "list_invoices" => Ok(Self::ListInvoices),
+            "list_offers" => Ok(Self::ListOffers),
+            "disable_offer" => Ok(Self::DisableOffer),
+            "list_addresses" => Ok(Self::ListAddresses),
             "pay_bip321" => Ok(Self::PayBip321),
             "make_bip321" => Ok(Self::MakeBip321),
             "subscribe_notifications" => Ok(Self::SubscribeNotifications),
@@ -345,6 +361,14 @@ pub enum RequestParams {
     LookupOffer(LookupOfferRequest),
     /// Lookup Address
     LookupAddress(LookupAddressRequest),
+    /// List Invoices
+    ListInvoices(ListInvoicesRequest),
+    /// List Offers
+    ListOffers(ListOffersRequest),
+    /// Disable Offer
+    DisableOffer(DisableOfferRequest),
+    /// List Addresses
+    ListAddresses(ListAddressesRequest),
     /// Pay BIP-321 URI
     PayBip321(PayBip321Request),
     /// Make BIP-321 URI
@@ -388,6 +412,10 @@ impl Serialize for RequestParams {
             RequestParams::MakeOffer(p) => p.serialize(serializer),
             RequestParams::LookupOffer(p) => p.serialize(serializer),
             RequestParams::LookupAddress(p) => p.serialize(serializer),
+            RequestParams::ListInvoices(p) => p.serialize(serializer),
+            RequestParams::ListOffers(p) => p.serialize(serializer),
+            RequestParams::DisableOffer(p) => p.serialize(serializer),
+            RequestParams::ListAddresses(p) => p.serialize(serializer),
             RequestParams::PayBip321(p) => p.serialize(serializer),
             RequestParams::MakeBip321(p) => p.serialize(serializer),
             RequestParams::SubscribeNotifications(p) => p.serialize(serializer),
@@ -646,6 +674,58 @@ pub struct LookupAddressRequest {
     pub address: String,
 }
 
+/// List Invoices Request
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct ListInvoicesRequest {
+    /// Starting timestamp in seconds since epoch
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub from: Option<Timestamp>,
+    /// Ending timestamp in seconds since epoch
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub until: Option<Timestamp>,
+    /// Number of invoices to return
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub limit: Option<u64>,
+    /// Offset of the first invoice to return
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub offset: Option<u64>,
+    /// Filter by state: "pending", "settled", "expired"
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub state: Option<String>,
+}
+
+/// List Offers Request
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct ListOffersRequest {
+    /// If true, only return active offers
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub active_only: Option<bool>,
+    /// Number of offers to return
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub limit: Option<u64>,
+    /// Offset of the first offer to return
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub offset: Option<u64>,
+}
+
+/// Disable Offer Request
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct DisableOfferRequest {
+    /// BOLT-12 offer string to disable
+    pub offer: String,
+}
+
+/// List Addresses Request
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct ListAddressesRequest {
+    /// Number of addresses to return
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub limit: Option<u64>,
+    /// Offset of the first address to return
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub offset: Option<u64>,
+}
+
 /// Pay BIP-321 URI Request
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct PayBip321Request {
@@ -888,6 +968,42 @@ impl Request {
         }
     }
 
+    /// Compose `list_invoices` request
+    #[inline]
+    pub fn list_invoices(params: ListInvoicesRequest) -> Self {
+        Self {
+            method: Method::ListInvoices,
+            params: RequestParams::ListInvoices(params),
+        }
+    }
+
+    /// Compose `list_offers` request
+    #[inline]
+    pub fn list_offers(params: ListOffersRequest) -> Self {
+        Self {
+            method: Method::ListOffers,
+            params: RequestParams::ListOffers(params),
+        }
+    }
+
+    /// Compose `disable_offer` request
+    #[inline]
+    pub fn disable_offer(params: DisableOfferRequest) -> Self {
+        Self {
+            method: Method::DisableOffer,
+            params: RequestParams::DisableOffer(params),
+        }
+    }
+
+    /// Compose `list_addresses` request
+    #[inline]
+    pub fn list_addresses(params: ListAddressesRequest) -> Self {
+        Self {
+            method: Method::ListAddresses,
+            params: RequestParams::ListAddresses(params),
+        }
+    }
+
     /// Compose `pay_bip321` request
     #[inline]
     pub fn pay_bip321(params: PayBip321Request) -> Self {
@@ -974,6 +1090,22 @@ impl Request {
             Method::LookupAddress => {
                 let params: LookupAddressRequest = serde_json::from_value(template.params)?;
                 RequestParams::LookupAddress(params)
+            }
+            Method::ListInvoices => {
+                let params: ListInvoicesRequest = serde_json::from_value(template.params)?;
+                RequestParams::ListInvoices(params)
+            }
+            Method::ListOffers => {
+                let params: ListOffersRequest = serde_json::from_value(template.params)?;
+                RequestParams::ListOffers(params)
+            }
+            Method::DisableOffer => {
+                let params: DisableOfferRequest = serde_json::from_value(template.params)?;
+                RequestParams::DisableOffer(params)
+            }
+            Method::ListAddresses => {
+                let params: ListAddressesRequest = serde_json::from_value(template.params)?;
+                RequestParams::ListAddresses(params)
             }
             Method::PayBip321 => {
                 let params: PayBip321Request = serde_json::from_value(template.params)?;
@@ -1318,6 +1450,88 @@ pub struct LookupAddressResponse {
     pub transactions: Vec<AddressTransaction>,
 }
 
+/// List Invoices Response
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+pub struct ListInvoicesResponse {
+    /// List of invoices
+    pub invoices: Vec<InvoiceEntry>,
+}
+
+/// Invoice Entry
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+pub struct InvoiceEntry {
+    /// Bolt11 invoice
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub invoice: Option<String>,
+    /// Invoice description
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    /// Payment hash
+    pub payment_hash: String,
+    /// Amount in millisatoshis
+    pub amount: u64,
+    /// State: "pending", "settled", "expired"
+    pub state: String,
+    /// Payment preimage
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub preimage: Option<String>,
+    /// Creation timestamp
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub created_at: Option<Timestamp>,
+    /// Expiration timestamp
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub expires_at: Option<Timestamp>,
+    /// Settlement timestamp
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub settled_at: Option<Timestamp>,
+}
+
+/// List Offers Response
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+pub struct ListOffersResponse {
+    /// List of offers
+    pub offers: Vec<OfferEntry>,
+}
+
+/// Offer Entry
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+pub struct OfferEntry {
+    /// BOLT-12 offer string
+    pub offer: String,
+    /// Offer description
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    /// Amount in millisatoshis
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub amount: Option<u64>,
+    /// Whether the offer is active
+    pub active: bool,
+    /// Number of payments received via this offer
+    pub num_payments_received: u64,
+    /// Total amount received in millisatoshis
+    pub total_received: u64,
+}
+
+/// Disable Offer Response
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+pub struct DisableOfferResponse {}
+
+/// List Addresses Response
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+pub struct ListAddressesResponse {
+    /// List of addresses
+    pub addresses: Vec<AddressEntry>,
+}
+
+/// Address Entry
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+pub struct AddressEntry {
+    /// Bitcoin address
+    pub address: String,
+    /// Total received in satoshis
+    pub total_received: u64,
+}
+
 /// NIP47 Response Result
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ResponseResult {
@@ -1353,6 +1567,14 @@ pub enum ResponseResult {
     LookupOffer(LookupOfferResponse),
     /// Lookup Address
     LookupAddress(LookupAddressResponse),
+    /// List Invoices
+    ListInvoices(ListInvoicesResponse),
+    /// List Offers
+    ListOffers(ListOffersResponse),
+    /// Disable Offer
+    DisableOffer(DisableOfferResponse),
+    /// List Addresses
+    ListAddresses(ListAddressesResponse),
     /// Pay BIP-321 URI
     PayBip321(PayBip321Response),
     /// Make BIP-321 URI
@@ -1391,6 +1613,10 @@ impl Serialize for ResponseResult {
             ResponseResult::MakeOffer(p) => p.serialize(serializer),
             ResponseResult::LookupOffer(p) => p.serialize(serializer),
             ResponseResult::LookupAddress(p) => p.serialize(serializer),
+            ResponseResult::ListInvoices(p) => p.serialize(serializer),
+            ResponseResult::ListOffers(p) => p.serialize(serializer),
+            ResponseResult::DisableOffer(p) => p.serialize(serializer),
+            ResponseResult::ListAddresses(p) => p.serialize(serializer),
             ResponseResult::PayBip321(p) => p.serialize(serializer),
             ResponseResult::MakeBip321(p) => p.serialize(serializer),
             ResponseResult::SubscribeNotifications(p) => p.serialize(serializer),
@@ -1508,6 +1734,22 @@ impl Response {
                 Method::LookupAddress => {
                     let result: LookupAddressResponse = serde_json::from_value(result)?;
                     ResponseResult::LookupAddress(result)
+                }
+                Method::ListInvoices => {
+                    let result: ListInvoicesResponse = serde_json::from_value(result)?;
+                    ResponseResult::ListInvoices(result)
+                }
+                Method::ListOffers => {
+                    let result: ListOffersResponse = serde_json::from_value(result)?;
+                    ResponseResult::ListOffers(result)
+                }
+                Method::DisableOffer => {
+                    let result: DisableOfferResponse = serde_json::from_value(result)?;
+                    ResponseResult::DisableOffer(result)
+                }
+                Method::ListAddresses => {
+                    let result: ListAddressesResponse = serde_json::from_value(result)?;
+                    ResponseResult::ListAddresses(result)
                 }
                 Method::PayBip321 => {
                     let result: PayBip321Response = serde_json::from_value(result)?;
@@ -1737,6 +1979,58 @@ impl Response {
         }
 
         if let Some(ResponseResult::LookupAddress(result)) = self.result {
+            return Ok(result);
+        }
+
+        Err(Error::UnexpectedResult)
+    }
+
+    /// Convert [Response] to [ListInvoicesResponse]
+    pub fn to_list_invoices(self) -> Result<ListInvoicesResponse, Error> {
+        if let Some(e) = self.error {
+            return Err(Error::ErrorCode(e));
+        }
+
+        if let Some(ResponseResult::ListInvoices(result)) = self.result {
+            return Ok(result);
+        }
+
+        Err(Error::UnexpectedResult)
+    }
+
+    /// Convert [Response] to [ListOffersResponse]
+    pub fn to_list_offers(self) -> Result<ListOffersResponse, Error> {
+        if let Some(e) = self.error {
+            return Err(Error::ErrorCode(e));
+        }
+
+        if let Some(ResponseResult::ListOffers(result)) = self.result {
+            return Ok(result);
+        }
+
+        Err(Error::UnexpectedResult)
+    }
+
+    /// Convert [Response] to [DisableOfferResponse]
+    pub fn to_disable_offer(self) -> Result<DisableOfferResponse, Error> {
+        if let Some(e) = self.error {
+            return Err(Error::ErrorCode(e));
+        }
+
+        if let Some(ResponseResult::DisableOffer(result)) = self.result {
+            return Ok(result);
+        }
+
+        Err(Error::UnexpectedResult)
+    }
+
+    /// Convert [Response] to [ListAddressesResponse]
+    pub fn to_list_addresses(self) -> Result<ListAddressesResponse, Error> {
+        if let Some(e) = self.error {
+            return Err(Error::ErrorCode(e));
+        }
+
+        if let Some(ResponseResult::ListAddresses(result)) = self.result {
             return Ok(result);
         }
 
