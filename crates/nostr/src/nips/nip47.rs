@@ -625,7 +625,7 @@ pub struct PayOnchainRequest {
     /// Bitcoin address to send to
     pub address: String,
     /// Amount in satoshis
-    pub amount: u64,
+    pub amount_sats: u64,
     /// Optional fee rate in sat/vB
     #[serde(skip_serializing_if = "Option::is_none")]
     pub feerate: Option<u64>,
@@ -1275,14 +1275,14 @@ pub struct LookupInvoiceResponse {
 /// Get Balance Response
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct GetBalanceResponse {
-    /// Balance amount in msats
+    /// Balance amount in msats (lightning_balance plus onchain_balance_sats × 1000)
     pub balance: u64,
     /// Lightning balance in msats
     #[serde(skip_serializing_if = "Option::is_none")]
     pub lightning_balance: Option<u64>,
-    /// On-chain balance in msats
+    /// On-chain balance in sats
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub onchain_balance: Option<u64>,
+    pub onchain_balance_sats: Option<u64>,
 }
 
 /// Get Info Response
@@ -1434,7 +1434,7 @@ pub struct AddressTransaction {
     /// Transaction ID
     pub txid: String,
     /// Amount in satoshis
-    pub amount: u64,
+    pub amount_sats: u64,
     /// Timestamp in seconds since epoch
     pub timestamp: Timestamp,
 }
@@ -1445,7 +1445,7 @@ pub struct LookupAddressResponse {
     /// Bitcoin address
     pub address: String,
     /// Total received in satoshis
-    pub total_received: u64,
+    pub total_received_sats: u64,
     /// Transactions for this address
     pub transactions: Vec<AddressTransaction>,
 }
@@ -1529,7 +1529,7 @@ pub struct AddressEntry {
     /// Bitcoin address
     pub address: String,
     /// Total received in satoshis
-    pub total_received: u64,
+    pub total_received_sats: u64,
 }
 
 /// NIP47 Response Result
